@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>掃除当番アプリ</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F5F0;--card:#FFF;--primary:#2D2926;--accent:#C8A97E;--accent2:#7E9E8C;
+  --muted:#8C8680;--border:#E8E4DC;
+  --heavy-bg:#FDF0E8;--heavy-txt:#8B4513;--heavy-border:#E8C4A0;
+  --mid-bg:#EEF4F0;--mid-txt:#2D6B4F;--mid-border:#B8D4C4;
+  --light-bg:#F0F4F8;--light-txt:#2C4A6E;--light-border:#B8CDE0;
+  --omit:#F0EDE8;--danger:#C0392B;
+  --shadow:0 2px 12px rgba(0,0,0,.06);--radius:16px;--radius-sm:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--primary);min-height:100vh;padding-bottom:80px}
+
+/* Sync bar */
+#sync-bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;font-size:11px;font-weight:500;transition:all .3s}
+#sync-bar.ok{background:#EEF4F0;color:#2D6B4F}
+#sync-bar.err{background:#FDF0E8;color:#8B4513}
+#sync-bar.loading{background:#F0F4F8;color:#2C4A6E}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.7}
+
+nav{position:sticky;top:0;z-index:100;background:var(--card);border-bottom:1px solid var(--border);display:flex}
+nav button{flex:1;padding:13px 2px 11px;font-family:inherit;font-size:11px;font-weight:500;color:var(--muted);background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;transition:all .2s}
+nav button.active{color:var(--primary);border-bottom-color:var(--accent)}
+
+.page{display:none;padding:16px;max-width:520px;margin:0 auto}
+.page.active{display:block}
+
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.card-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:15px;font-weight:700}
+.card-sub{font-size:11px;color:var(--muted)}
+
+.today-hero{background:var(--primary);color:#fff;border-radius:var(--radius);padding:20px 20px 16px;margin-bottom:16px;position:relative;overflow:hidden}
+.today-hero::before{content:'';position:absolute;right:-20px;top:-20px;width:120px;height:120px;background:rgba(200,169,126,.15);border-radius:50%}
+.today-date{font-size:12px;color:rgba(255,255,255,.6);margin-bottom:4px}
+.today-day{font-size:26px;font-weight:700}
+.today-count{font-size:13px;color:rgba(255,255,255,.7);margin-top:4px}
+
+.staff-row{display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap}
+.staff-chip{display:flex;align-items:center;justify-content:center;min-width:44px;height:40px;padding:0 12px;border-radius:20px;font-size:13px;font-weight:700;border:2px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer;transition:all .18s;user-select:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.staff-chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.staff-chip:active{transform:scale(.93)}
+
+.task-item{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);gap:10px}
+.task-item:last-child{border-bottom:none}
+.task-name{flex:1;font-size:13px;font-weight:500}
+.task-name.omit{text-decoration:line-through;color:var(--muted);font-weight:400}
+.level-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid;white-space:nowrap;letter-spacing:.02em}
+.lv-heavy{background:var(--heavy-bg);color:var(--heavy-txt);border-color:var(--heavy-border)}
+.lv-mid{background:var(--mid-bg);color:var(--mid-txt);border-color:var(--mid-border)}
+.lv-light{background:var(--light-bg);color:var(--light-txt);border-color:var(--light-border)}
+.assignee-tag{font-size:11px;font-weight:700;height:28px;border-radius:14px;display:flex;align-items:center;padding:0 10px;color:#fff;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.omit-tag{background:var(--omit)!important;color:var(--muted);border-radius:8px;font-size:10px}
+
+.score-bar{display:flex;gap:6px;padding:10px 16px;background:var(--bg);flex-wrap:wrap}
+.score-chip{font-size:11px;padding:4px 10px;border-radius:20px;background:var(--card);border:1px solid var(--border);color:var(--muted)}
+.score-chip strong{color:var(--primary)}
+
+.btn-primary{width:100%;padding:14px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s;letter-spacing:.03em;margin-top:4px}
+.btn-primary:active{opacity:.8}
+.btn-primary:disabled{opacity:.4;cursor:default}
+
+.confirm-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border)}
+.chk{width:20px;height:20px;accent-color:var(--accent2);cursor:pointer}
+.confirm-label{font-size:13px;color:var(--muted)}
+
+.week-grid{padding:8px 16px}
+.shift-day-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px}
+.shift-day-row:last-child{border-bottom:none}
+.shift-day-name{font-size:13px;font-weight:700;min-width:52px}
+.shift-chips{display:flex;gap:6px;flex-wrap:wrap}
+.shift-chip{min-width:32px;height:32px;padding:0 8px;border-radius:16px;border:2px solid var(--border);background:var(--bg);font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+.shift-chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.save-shift-btn{padding:12px 20px;border:none;border-radius:var(--radius-sm);background:var(--accent2);color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:12px;letter-spacing:.03em}
+
+.hist-item{padding:12px 16px;border-bottom:1px solid var(--border)}
+.hist-item:last-child{border-bottom:none}
+.hist-date{font-size:11px;color:var(--muted);margin-bottom:6px}
+.hist-tasks{display:flex;flex-direction:column;gap:4px}
+.hist-row{display:flex;gap:8px;font-size:12px;align-items:flex-start}
+.hist-staff{font-weight:700;min-width:48px;white-space:nowrap}
+.hist-task-list{color:var(--muted)}
+.empty-hist{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+
+.staff-edit-row{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:10px}
+.staff-edit-row:last-child{border-bottom:none}
+.color-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.name-input{flex:1;font-family:inherit;font-size:14px;font-weight:500;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;background:var(--bg);color:var(--primary);outline:none;transition:border-color .15s;min-width:0}
+.name-input:focus{border-color:var(--accent)}
+.del-btn{padding:5px 10px;border:1.5px solid #e0b8b8;border-radius:8px;background:#fdf0f0;color:var(--danger);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.add-btn{display:flex;align-items:center;gap:6px;padding:12px 16px;font-family:inherit;font-size:13px;font-weight:700;color:var(--accent2);background:none;border:none;cursor:pointer;border-top:1px solid var(--border);width:100%}
+.section-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px}
+.info-box{background:#FEF9F0;border:1px solid #E8D4A0;border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:#7A5C1E;margin-bottom:12px;line-height:1.7}
+
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;opacity:.6}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- 同期ステータスバー -->
+<div id="sync-bar" class="loading">
+  <span class="spinner"></span>
+  <span id="sync-txt">データを読み込み中…</span>
+</div>
+
+<nav>
+  <button class="active" onclick="showPage('today')">📋 本日の当番</button>
+  <button onclick="showPage('shift')">📅 シフト登録</button>
+  <button onclick="showPage('history')">🕐 当番履歴</button>
+  <button onclick="showPage('settings')">👥 スタッフ</button>
+</nav>
+
+<!-- TODAY -->
+<div class="page active" id="page-today">
+  <div id="today-hero" class="today-hero"></div>
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">出勤スタッフ</div><div class="card-sub">タップで選択・解除</div></div>
+    </div>
+    <div class="staff-row" id="today-chips"></div>
+    <div style="padding:0 16px 14px">
+      <button class="btn-primary" id="assign-btn" onclick="doAssign()">割り振りを実行</button>
+    </div>
+  </div>
+  <div class="card" id="result-card" style="display:none">
+    <div class="card-header">
+      <div class="card-title">本日の担当</div>
+      <div class="card-sub" id="result-meta"></div>
+    </div>
+    <div id="result-tasks"></div>
+    <div class="score-bar" id="result-scores"></div>
+    <div class="confirm-row">
+      <input type="checkbox" class="chk" id="confirm-chk" onchange="onConfirm(this)">
+      <label for="confirm-chk" class="confirm-label">全員に伝達済み・履歴に保存する</label>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT -->
+<div class="page" id="page-shift">
+  <div class="section-label">週間シフト事前登録</div>
+  <div class="card">
+    <div class="week-grid" id="shift-grid"></div>
+    <div style="padding:0 16px 14px">
+      <button class="save-shift-btn" id="save-shift-btn" onclick="saveShift()">シフトを保存・同期</button>
+    </div>
+  </div>
+  <p style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center">保存するとすべての端末に即時反映されます</p>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div class="section-label">当番履歴</div>
+  <div class="card">
+    <div class="empty-hist" id="hist-empty">まだ履歴がありません</div>
+    <div id="hist-list"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="section-label">スタッフ名の登録・編集</div>
+  <div class="info-box">名前を入力して「保存・同期」してください。保存するとすべての端末に即時反映されます。最大8名まで登録できます。</div>
+  <div class="card">
+    <div id="setting-rows"></div>
+    <button class="add-btn" onclick="addStaffRow()">＋ スタッフを追加</button>
+  </div>
+  <button class="btn-primary" id="save-staff-btn" onclick="saveStaff()">スタッフ情報を保存・同期</button>
+  <div class="section-label" style="margin-top:20px">自動割り振りのルール</div>
+  <div class="card" style="padding:14px 16px">
+    <p style="font-size:12px;color:var(--muted);line-height:1.9">
+      ・出勤3名以下：「玄関・屋外」を省略<br>
+      ・1人2箇所（重い作業＋軽い作業）を組み合わせ<br>
+      ・負担点数が均等になるよう自動調整
+    </p>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── Firebase設定 ──
+const firebaseConfig = {
+  apiKey: "AIzaSyDSNONhBEXmTsOwTOcHkk0H8CZwZ8erZ00",
+  authDomain: "clippers-cleaning.firebaseapp.com",
+  databaseURL: "https://clippers-cleaning-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "clippers-cleaning",
+  storageBucket: "clippers-cleaning.firebasestorage.app",
+  messagingSenderId: "693442025628",
+  appId: "1:693442025628:web:c526d94db2f160c4203559"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+// ── TASKS ──
+const TASKS = [
+  {id:'toilet',  name:'トイレ',            score:9, level:'heavy'},
+  {id:'shampoo', name:'シャンプーボウル',   score:8, level:'heavy'},
+  {id:'chair',   name:'カット椅子（10脚）', score:8, level:'heavy'},
+  {id:'floor',   name:'フロア掃き',         score:6, level:'mid'},
+  {id:'mirror',  name:'鏡・テーブル周り',   score:5, level:'mid'},
+  {id:'register',name:'レジ・商品棚',       score:5, level:'mid'},
+  {id:'entrance',name:'玄関・屋外',         score:4, level:'light'},
+];
+const DAYS   = ['月','火','水','木','金','土','日'];
+const COLORS = ['#C8A97E','#7E9E8C','#9E7E8C','#7E8C9E','#B89E7E','#8C9E7E','#9E8C9E','#7E9EB8'];
+
+// ── STATE ──
+let staffList = ['A','B','C','D','E'];
+let shiftData = {};
+let histData  = [];
+let todaySel  = new Set();
+let assigned  = null;
+let editBuf   = [];
+let _writing  = false; // prevent echo on own writes
+
+for (let i = 0; i < 7; i++) shiftData[i] = staffList.slice(0, 3);
+
+// ── HELPERS ──
+function staffColor(s){ const i=staffList.indexOf(s); return COLORS[i>=0?i%COLORS.length:0]; }
+function getTodayIdx(){ return {0:6,1:0,2:1,3:2,4:3,5:4,6:5}[new Date().getDay()]; }
+function lvClass(lv){ return lv==='heavy'?'lv-heavy':lv==='mid'?'lv-mid':'lv-light'; }
+function lvLabel(lv,sc){ return (lv==='heavy'?'重':lv==='mid'?'中':'軽')+`（${sc}点）`; }
+function fmt(d){ const t=new Date(d); return `${t.getFullYear()}/${String(t.getMonth()+1).padStart(2,'0')}/${String(t.getDate()).padStart(2,'0')}`; }
+function clip(s,n){ return s&&s.length>n?s.slice(0,n)+'…':s||''; }
+
+function setSyncStatus(state, msg){
+  const bar=document.getElementById('sync-bar');
+  const txt=document.getElementById('sync-txt');
+  bar.className=state;
+  txt.textContent=msg;
+  if(state==='ok') setTimeout(()=>{ if(bar.className==='ok'){ bar.className='ok'; txt.textContent='✓ 同期済み'; } },2000);
+}
+
+// ── FIREBASE SYNC ──
+// Write entire state
+async function pushAll(){
+  _writing = true;
+  try {
+    await set(ref(db,'salon'), {
+      staffList,
+      shiftData: JSON.parse(JSON.stringify(shiftData)),
+      histData: histData.slice(0,90)
+    });
+    setSyncStatus('ok','✓ 同期しました');
+  } catch(e){
+    setSyncStatus('err','⚠ 同期エラー: '+e.message);
+  }
+  setTimeout(()=>{ _writing=false; }, 500);
+}
+
+// Listen for changes from other devices
+onValue(ref(db,'salon'), (snapshot)=>{
+  if(_writing) return; // ignore own writes
+  const data = snapshot.val();
+  if(!data){ setSyncStatus('ok','✓ 接続済み（データなし）'); return; }
+  if(data.staffList)  staffList = data.staffList;
+  if(data.shiftData){
+    shiftData = {};
+    for(let i=0;i<7;i++) shiftData[i] = data.shiftData[i] || [];
+  }
+  if(data.histData)   histData = data.histData;
+
+  // clean todaySel
+  [...todaySel].forEach(s=>{ if(!staffList.includes(s)) todaySel.delete(s); });
+
+  setSyncStatus('ok','✓ 同期済み');
+  // re-render active page
+  const active = document.querySelector('.page.active');
+  if(active){
+    const id = active.id.replace('page-','');
+    if(id==='today')    renderToday();
+    if(id==='shift')    renderShift();
+    if(id==='history')  renderHistory();
+    if(id==='settings') renderSettings();
+  }
+}, (err)=>{
+  setSyncStatus('err','⚠ 接続エラー: '+err.message);
+});
+
+// ── COMPUTE ──
+function compute(arr){
+  const omit = arr.length<=3?['entrance']:[];
+  const active = TASKS.filter(t=>!omit.includes(t.id));
+  const sorted = [...active].sort((a,b)=>b.score-a.score);
+  const pairs=[]; const used=new Set();
+  for(const t of sorted){
+    if(used.has(t.id)) continue; used.add(t.id);
+    let p=null; for(let i=sorted.length-1;i>=0;i--){ if(!used.has(sorted[i].id)){p=sorted[i];break;} }
+    if(p){used.add(p.id);pairs.push([t,p]);}else pairs.push([t]);
+  }
+  const result={},scores={};
+  arr.forEach(s=>scores[s]=0);
+  for(const pair of pairs){
+    const s=arr.reduce((a,b)=>scores[a]<=scores[b]?a:b);
+    pair.forEach(t=>{result[t.id]=s;scores[s]+=t.score;});
+  }
+  for(let k=0;k<30;k++){
+    const mx=arr.reduce((a,b)=>scores[a]>scores[b]?a:b);
+    const mn=arr.reduce((a,b)=>scores[a]<scores[b]?a:b);
+    if(scores[mx]-scores[mn]<=3) break;
+    let best=null,bg=scores[mx]-scores[mn];
+    for(const t of active){
+      if(result[t.id]!==mx) continue;
+      const nm=scores[mx]-t.score,nmi=scores[mn]+t.score;
+      if(nm>=nmi&&(nm-nmi)<bg){best=t;bg=nm-nmi;}
+    }
+    if(best){scores[mx]-=best.score;scores[mn]+=best.score;result[best.id]=mn;}else break;
+  }
+  return{result,scores,omit};
+}
+
+// ── TODAY ──
+function renderToday(){
+  const idx=getTodayIdx();
+  const shift=(shiftData[idx]||[]).filter(s=>staffList.includes(s));
+  const days=['月曜日','火曜日','水曜日','木曜日','金曜日','土曜日','日曜日'];
+  const now=new Date();
+  document.getElementById('today-hero').innerHTML=
+    `<div class="today-date">${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日</div>
+     <div class="today-day">${days[idx]}</div>
+     <div class="today-count" id="cnt-lbl">シフト登録: ${shift.length}名</div>`;
+
+  if(!todaySel.size) shift.forEach(s=>todaySel.add(s));
+  [...todaySel].forEach(s=>{ if(!staffList.includes(s)) todaySel.delete(s); });
+
+  const row=document.getElementById('today-chips'); row.innerHTML='';
+  staffList.forEach(s=>{
+    const c=document.createElement('div');
+    c.className='staff-chip'+(todaySel.has(s)?' on':'');
+    c.textContent=clip(s,5); c.title=s;
+    c.onclick=()=>{
+      if(todaySel.has(s)){if(todaySel.size>1)todaySel.delete(s);}else todaySel.add(s);
+      assigned=null;
+      document.getElementById('result-card').style.display='none';
+      renderToday();
+    };
+    row.appendChild(c);
+  });
+  document.getElementById('cnt-lbl').textContent=`出勤: ${todaySel.size}名選択中`;
+  document.getElementById('assign-btn').disabled=!staffList.length;
+}
+
+function doAssign(){
+  const staff=[...todaySel].filter(s=>staffList.includes(s));
+  if(!staff.length) return;
+  const{result,scores,omit}=compute(staff);
+  assigned={result,scores,omit,staff};
+  document.getElementById('result-meta').textContent=`${staff.length}名 / ${TASKS.length-omit.length}箇所`;
+  const td=document.getElementById('result-tasks'); td.innerHTML='';
+  TASKS.forEach(t=>{
+    const isOmit=omit.includes(t.id);
+    const r=document.createElement('div'); r.className='task-item';
+    const name=result[t.id];
+    r.innerHTML=`
+      <span class="task-name${isOmit?' omit':''}">${t.name}</span>
+      <span class="level-badge ${lvClass(t.level)}">${lvLabel(t.level,t.score)}</span>
+      ${isOmit
+        ?'<span class="assignee-tag omit-tag">省略</span>'
+        :`<span class="assignee-tag" style="background:${staffColor(name)}" title="${name}">${clip(name,5)}</span>`}`;
+    td.appendChild(r);
+  });
+  const sb=document.getElementById('result-scores'); sb.innerHTML='';
+  staff.forEach(s=>{
+    const c=document.createElement('div'); c.className='score-chip';
+    c.innerHTML=`<strong>${clip(s,5)}</strong>: ${scores[s]}点`; sb.appendChild(c);
+  });
+  document.getElementById('confirm-chk').checked=false;
+  document.getElementById('confirm-chk').disabled=false;
+  document.getElementById('result-card').style.display='block';
+}
+
+function onConfirm(chk){
+  if(!chk.checked||!assigned) return;
+  const byStaff={};
+  assigned.staff.forEach(s=>byStaff[s]=[]);
+  TASKS.forEach(t=>{ if(!assigned.omit.includes(t.id)) byStaff[assigned.result[t.id]].push(t.name); });
+  histData.unshift({date:new Date().toISOString(),staff:assigned.staff,byStaff,scores:assigned.scores});
+  if(histData.length>90) histData=histData.slice(0,90);
+  pushAll();
+  chk.disabled=true;
+  document.getElementById('assign-btn').disabled=true;
+}
+
+// ── SHIFT ──
+function renderShift(){
+  for(let i=0;i<7;i++){
+    if(!shiftData[i]) shiftData[i]=[];
+    shiftData[i]=shiftData[i].filter(s=>staffList.includes(s));
+  }
+  const g=document.getElementById('shift-grid'); g.innerHTML='';
+  DAYS.forEach((day,i)=>{
+    const row=document.createElement('div'); row.className='shift-day-row';
+    const cur=shiftData[i]||[];
+    let html=`<span class="shift-day-name">${day}曜日</span><div class="shift-chips">`;
+    staffList.forEach(s=>{
+      html+=`<div class="shift-chip${cur.includes(s)?' on':''}" onclick="window._toggleShift(${i},'${s}',this)" title="${s}">${clip(s,4)}</div>`;
+    });
+    html+='</div>'; row.innerHTML=html; g.appendChild(row);
+  });
+}
+window._toggleShift=function(di,s,el){
+  if(!shiftData[di]) shiftData[di]=[];
+  const a=shiftData[di],idx=a.indexOf(s);
+  if(idx>=0) a.splice(idx,1); else a.push(s);
+  el.classList.toggle('on',shiftData[di].includes(s));
+};
+function saveShift(){
+  pushAll();
+  todaySel=new Set(); renderToday(); showPage('today');
+  const b=document.getElementById('save-shift-btn');
+  b.textContent='✓ 保存・同期しました'; setTimeout(()=>b.textContent='シフトを保存・同期',1500);
+}
+
+// ── HISTORY ──
+function renderHistory(){
+  const list=document.getElementById('hist-list');
+  const empty=document.getElementById('hist-empty');
+  if(!histData.length){empty.style.display='';list.innerHTML='';return;}
+  empty.style.display='none'; list.innerHTML='';
+  histData.slice(0,30).forEach(h=>{
+    const item=document.createElement('div'); item.className='hist-item';
+    const rows=h.staff.map(s=>
+      `<div class="hist-row"><span class="hist-staff" style="color:${staffColor(s)}">${clip(s,6)}</span><span class="hist-task-list">${(h.byStaff[s]||[]).join(' / ')}</span></div>`
+    ).join('');
+    item.innerHTML=`<div class="hist-date">${fmt(h.date)}</div><div class="hist-tasks">${rows}</div>`;
+    list.appendChild(item);
+  });
+}
+
+// ── SETTINGS ──
+function renderSettings(){ editBuf=[...staffList]; drawRows(); }
+function drawRows(){
+  const c=document.getElementById('setting-rows'); c.innerHTML='';
+  editBuf.forEach((name,i)=>{
+    const row=document.createElement('div'); row.className='staff-edit-row';
+    const color=COLORS[i%COLORS.length];
+    row.innerHTML=`
+      <div class="color-dot" style="background:${color}"></div>
+      <input class="name-input" type="text" value="${name}" maxlength="10" placeholder="名前を入力"
+        oninput="window._editBufSet(${i},this.value)" onkeydown="if(event.key==='Enter')saveStaff()">
+      <button class="del-btn" onclick="window._delRow(${i})">削除</button>`;
+    c.appendChild(row);
+  });
+}
+window._editBufSet=function(i,v){ editBuf[i]=v; };
+window._delRow=function(i){
+  if(editBuf.length<=1){alert('スタッフは最低1名必要です');return;}
+  editBuf.splice(i,1); drawRows();
+};
+function addStaffRow(){
+  if(editBuf.length>=8){alert('スタッフは最大8名まで登録できます');return;}
+  editBuf.push(''); drawRows();
+  const inputs=document.querySelectorAll('.name-input');
+  if(inputs.length) inputs[inputs.length-1].focus();
+}
+function saveStaff(){
+  const inputs=[...document.querySelectorAll('.name-input')];
+  const names=inputs.map(el=>el.value.trim()).filter(v=>v!=='');
+  if(!names.length){alert('スタッフ名を1名以上入力してください');return;}
+  const removed=staffList.filter(s=>!names.includes(s));
+  staffList=names; editBuf=[...names];
+  removed.forEach(s=>{
+    for(let i=0;i<7;i++){ if(shiftData[i]) shiftData[i]=shiftData[i].filter(x=>x!==s); }
+  });
+  todaySel=new Set();
+  pushAll(); drawRows(); renderToday();
+  const b=document.getElementById('save-staff-btn');
+  b.textContent='✓ 保存・同期しました'; setTimeout(()=>b.textContent='スタッフ情報を保存・同期',1500);
+}
+
+// ── NAV ──
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('nav button')[{today:0,shift:1,history:2,settings:3}[id]].classList.add('active');
+  if(id==='today')    renderToday();
+  if(id==='shift')    renderShift();
+  if(id==='history')  renderHistory();
+  if(id==='settings') renderSettings();
+}
+window.showPage=showPage;
+window.doAssign=doAssign;
+window.onConfirm=onConfirm;
+window.saveShift=saveShift;
+window.saveStaff=saveStaff;
+window.addStaffRow=addStaffRow;
+
+renderToday();
+</script>
+</body>
+</html>
